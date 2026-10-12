@@ -4,6 +4,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="../CamLinks.VirtualCam/CamLinks.VirtualCam.vcxproj" Id="87786090-9141-4e97-a2da-d7a4cb559b3a">
+    <Platform Solution="*|ARM64" Project="x64" />
+  </Project>
   <Project Path="CamLinks.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />

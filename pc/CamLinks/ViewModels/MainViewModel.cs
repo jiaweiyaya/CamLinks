@@ -48,8 +48,22 @@ namespace CamLinks.ViewModels
         [ObservableProperty]
         private int _bitrate = 4000; // 单位 kbps
 
+        private readonly VirtualCameraService _virtualCameraService = new();
+
         [ObservableProperty]
-        private bool _isVirtualCameraRunning;
+        private bool _isVirtualCameraRunning = true;
+
+        partial void OnIsVirtualCameraRunningChanged(bool value)
+        {
+            if (value)
+            {
+                _virtualCameraService.Start();
+            }
+            else
+            {
+                _virtualCameraService.Stop();
+            }
+        }
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CanScan))]
@@ -154,6 +168,11 @@ namespace CamLinks.ViewModels
             _networkService.ConnectionStateChanged += OnConnectionStateChanged;
             _networkService.StateReceived += OnDeviceStateReceived;
             _networkService.VideoFrameReceived += OnVideoFrameReceived;
+
+            if (IsVirtualCameraRunning)
+            {
+                _virtualCameraService.Start();
+            }
         }
 
         private void OnVideoFrameReceived(byte[] frameBytes)
@@ -174,6 +193,11 @@ namespace CamLinks.ViewModels
                     if (!HasVideoFrame)
                     {
                         HasVideoFrame = true;
+                    }
+
+                    if (IsVirtualCameraRunning)
+                    {
+                        _ = _virtualCameraService.SendFrameAsync(frameBytes);
                     }
                 }
                 catch { }

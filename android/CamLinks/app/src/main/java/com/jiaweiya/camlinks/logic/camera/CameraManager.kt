@@ -51,6 +51,7 @@ class CameraManager(private val context: Context) {
 
             imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setTargetResolution(android.util.Size(1920, 1080))
                 .build().also { analysis ->
                     analysis.setAnalyzer(cameraExecutor) { imageProxy ->
                         try {
