@@ -13,7 +13,117 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
+        <!-- 顶部安全连接配置栏 -->
+        <Border Grid.Row="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="8" Padding="12" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <TextBox Header="手机 IP" Text="{x:Bind ViewModel.TargetIp, Mode=TwoWay}" Width="160" />
+                <NumberBox Header="端口" Value="{x:Bind ViewModel.TargetPort, Mode=TwoWay}" SpinButtonPlacementMode="Compact" Width="100" />
+                <Button Command="{x:Bind ViewModel.ToggleConnectionCommand}"
+                        VerticalAlignment="Bottom">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE701;" FontSize="14" />
+                        <TextBlock Text="{x:Bind ViewModel.ConnectionButtonText, Mode=OneWay}" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
+                           VerticalAlignment="Bottom" Margin="12,0,0,6" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Border>
+
+        <!-- 主内容区：左侧预览画面 + 右侧控制面板 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧：摄像头画面取景框 -->
+            <Border Grid.Column="0" Background="Black" CornerRadius="8" Margin="0,0,16,0">
+                <Grid>
+                    <Image x:Name="CameraPreviewImage" Stretch="Uniform" />
+                    <TextBlock Text="等待视频数据流..." Foreground="Gray" 
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{x:Bind ViewModel.VideoPlaceholderVisibility, Mode=OneWay}" />
+                </Grid>
+            </Border>
+
+            <!-- 右侧：控制参数调节区 -->
+            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" Padding="16">
+                <ScrollViewer>
+                    <StackPanel Spacing="18">
+                        <TextBlock Text="相机硬件控制" Style="{ThemeResource SubtitleTextBlockStyle}" />
+
+                        <!-- 基础快捷操作 -->
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SwitchCameraCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                                    <TextBlock Text="切换镜头" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.ToggleTorchCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE706;" FontSize="14" />
+                                    <TextBlock Text="手电筒" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- 快门按钮 -->
+                        <Button HorizontalAlignment="Stretch" Style="{ThemeResource AccentButtonStyle}"
+                                Command="{x:Bind ViewModel.CapturePhotoCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE722;" FontSize="16" />
+                                <TextBlock Text="远程快门拍照" />
+                            </StackPanel>
+                        </Button>
+
+                        <MenuFlyoutSeparator />
+
+                        <!-- 曝光控制 (EV) -->
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Stretch">
+                                <TextBlock Text="曝光补偿 (EV)" VerticalAlignment="Center" />
+                                <TextBlock Text="{x:Bind ViewModel.Exposure, Mode=OneWay}" 
+                                           Margin="8,0,0,0" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            </StackPanel>
+                            <Slider Value="{x:Bind ViewModel.Exposure, Mode=TwoWay}"
+                                    Minimum="{x:Bind ViewModel.MinExposure, Mode=OneWay}"
+                                    Maximum="{x:Bind ViewModel.MaxExposure, Mode=OneWay}"
+                                    StepFrequency="1" />
+                        </StackPanel>
+
+                        <!-- 传输码率设置 -->
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="传输码率 (kbps)" />
+                                <TextBlock Text="{x:Bind ViewModel.Bitrate, Mode=OneWay}" Margin="8,0,0,0" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            </StackPanel>
+                            <Slider Value="{x:Bind ViewModel.Bitrate, Mode=TwoWay}"
+                                    Minimum="1000" Maximum="20000" StepFrequency="500" />
+                        </StackPanel>
+
+                        <MenuFlyoutSeparator />
+
+                        <!-- 虚拟相机系统集成 -->
+                        <TextBlock Text="电脑虚拟摄像头" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                        <ToggleSwitch Header="虚拟摄像头输出"
+                                      IsOn="{x:Bind ViewModel.IsVirtualCameraRunning, Mode=TwoWay}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

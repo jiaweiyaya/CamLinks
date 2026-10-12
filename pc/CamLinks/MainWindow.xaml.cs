@@ -23,9 +23,12 @@ namespace CamLinks
     /// </summary>
     public sealed partial class MainWindow : Window
     {
+        public ViewModels.MainViewModel ViewModel { get; } = new();
+
         public MainWindow()
         {
             InitializeComponent();
+            Title = "CamLinks 控制台";
         }
     }
 }
