@@ -20,6 +20,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private var tlsServer: com.jiaweiya.camlinks.logic.network.TlsCamServer? = null
 
     init {
+        cameraManager.onFrameAvailable = { frameBytes ->
+            tlsServer?.broadcastBinary(frameBytes)
+        }
         discoveryServer.start()
         startTlsServer()
     }
@@ -58,7 +61,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     "set_bitrate" -> {
                         val bitrate = json.optInt("int_value", 4000)
-                        android.util.Log.i("CamLinks", "Bitrate updated to: $bitrate kbps")
+                        // 将 1000kbps~20000kbps 映射为合理的 JPEG 压缩质量 40~95
+                        val quality = (40 + (bitrate - 1000) * 55 / 19000).coerceIn(40, 95)
+                        cameraManager.frameQuality = quality
                     }
                 }
             }

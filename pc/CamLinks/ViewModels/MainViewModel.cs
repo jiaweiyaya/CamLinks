@@ -1,8 +1,12 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CamLinks.Models;
 using CamLinks.Services;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Storage.Streams;
 
 namespace CamLinks.ViewModels
 {
@@ -22,9 +26,6 @@ namespace CamLinks.ViewModels
         private bool _isConnected;
 
         public string ConnectionButtonText => IsConnected ? "断开" : "连接";
-
-        public Microsoft.UI.Xaml.Visibility VideoPlaceholderVisibility =>
-            IsConnected ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
 
         [ObservableProperty]
         private string _statusMessage = "未连接";
@@ -52,6 +53,16 @@ namespace CamLinks.ViewModels
 
         [ObservableProperty]
         private bool _isScanning;
+
+        [ObservableProperty]
+        private ImageSource? _previewSource;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(VideoPlaceholderVisibility))]
+        private bool _hasVideoFrame;
+
+        public Microsoft.UI.Xaml.Visibility VideoPlaceholderVisibility =>
+            (IsConnected && HasVideoFrame) ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
 
         partial void OnExposureChanged(int value)
         {
@@ -81,6 +92,31 @@ namespace CamLinks.ViewModels
         {
             _networkService.ConnectionStateChanged += OnConnectionStateChanged;
             _networkService.StateReceived += OnDeviceStateReceived;
+            _networkService.VideoFrameReceived += OnVideoFrameReceived;
+        }
+
+        private void OnVideoFrameReceived(byte[] frameBytes)
+        {
+            _dispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    using var stream = new InMemoryRandomAccessStream();
+                    using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
+                    {
+                        writer.WriteBytes(frameBytes);
+                        await writer.StoreAsync().AsTask();
+                    }
+                    var bitmap = new BitmapImage();
+                    await bitmap.SetSourceAsync(stream).AsTask();
+                    PreviewSource = bitmap;
+                    if (!HasVideoFrame)
+                    {
+                        HasVideoFrame = true;
+                    }
+                }
+                catch { }
+            });
         }
 
         [RelayCommand]
@@ -173,8 +209,16 @@ namespace CamLinks.ViewModels
 
         private void OnConnectionStateChanged(bool connected)
         {
-            IsConnected = connected;
-            StatusMessage = connected ? "TLS 安全通道已连接" : "已断开连接";
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                IsConnected = connected;
+                StatusMessage = connected ? "TLS 安全通道已连接" : "已断开连接";
+                if (!connected)
+                {
+                    HasVideoFrame = false;
+                    PreviewSource = null;
+                }
+            });
         }
 
         private void OnDeviceStateReceived(CameraDeviceState state)

@@ -53,4 +53,8 @@ class TlsCamServer(
     fun broadcastState(stateJson: String) {
         broadcast(stateJson)
     }
+
+    fun broadcastBinary(data: ByteArray) {
+        broadcast(data)
+    }
 }

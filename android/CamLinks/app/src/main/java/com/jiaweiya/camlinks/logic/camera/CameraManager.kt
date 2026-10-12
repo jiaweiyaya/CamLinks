@@ -6,9 +6,12 @@ import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import android.graphics.Bitmap
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import java.io.ByteArrayOutputStream
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -24,6 +27,9 @@ class CameraManager(private val context: Context) {
     private var cameraControl: CameraControl? = null
     private var cameraInfo: CameraInfo? = null
     private var imageCapture: ImageCapture? = null
+    private var imageAnalysis: ImageAnalysis? = null
+    var frameQuality: Int = 75
+    var onFrameAvailable: ((ByteArray) -> Unit)? = null
 
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
@@ -43,6 +49,23 @@ class CameraManager(private val context: Context) {
 
             imageCapture = ImageCapture.Builder().build()
 
+            imageAnalysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build().also { analysis ->
+                    analysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                        try {
+                            val bitmap = imageProxy.toBitmap()
+                            val outputStream = ByteArrayOutputStream()
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, frameQuality, outputStream)
+                            val bytes = outputStream.toByteArray()
+                            onFrameAvailable?.invoke(bytes)
+                        } catch (_: Exception) {
+                        } finally {
+                            imageProxy.close()
+                        }
+                    }
+                }
+
             val cameraSelector = CameraSelector.Builder()
                 .requireLensFacing(lensFacing)
                 .build()
@@ -53,7 +76,8 @@ class CameraManager(private val context: Context) {
                     lifecycleOwner,
                     cameraSelector,
                     preview,
-                    imageCapture
+                    imageCapture,
+                    imageAnalysis
                 )
 
                 cameraControl = camera?.cameraControl
