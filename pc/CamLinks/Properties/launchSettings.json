@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "CamLinks (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "CamLinks (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

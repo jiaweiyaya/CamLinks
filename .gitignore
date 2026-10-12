@@ -1,0 +1,26 @@
+# Android 临时与编译文件
+.gradle/
+build/
+*/build/
+*/*/build/
+*.apk
+*.aab
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Visual Studio / WinUI 3 临时与编译文件
+.vs/
+*/bin/
+*/obj/
+*/*/bin/
+*/*/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+packages/
+Generated Files/
