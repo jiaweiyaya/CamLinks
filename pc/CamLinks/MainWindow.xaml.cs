@@ -30,5 +30,25 @@ namespace CamLinks
             InitializeComponent();
             Title = "CamLinks 控制台";
         }
+
+        private void OnBitrateInputLostFocus(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+        {
+            ViewModel.ApplyBitrate();
+        }
+
+        private void OnBitrateInputKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+                ViewModel.ApplyBitrate();
+                e.Handled = true;
+            }
+        }
+
+        private void OnRootGridPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        }
     }
 }

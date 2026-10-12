@@ -13,7 +13,9 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid Margin="16">
+    <Grid x:Name="RootGrid" Margin="16" Background="Transparent" 
+          IsTabStop="True" UseSystemFocusVisuals="False"
+          PointerPressed="OnRootGridPointerPressed">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -26,16 +28,24 @@
                 <TextBox Header="手机 IP" Text="{x:Bind ViewModel.TargetIp, Mode=TwoWay}" Width="160" />
                 <NumberBox Header="端口" Value="{x:Bind ViewModel.TargetPort, Mode=TwoWay}" SpinButtonPlacementMode="Compact" Width="100" />
                 <Button Command="{x:Bind ViewModel.ScanDeviceCommand}"
+                        IsEnabled="{x:Bind ViewModel.CanScan, Mode=OneWay}"
                         VerticalAlignment="Bottom">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xEE6F;" FontSize="14" />
+                        <ProgressRing IsActive="True" Width="14" Height="14"
+                                      Visibility="{x:Bind ViewModel.ScanProgressVisibility, Mode=OneWay}" />
+                        <FontIcon Glyph="&#xEE6F;" FontSize="14"
+                                  Visibility="{x:Bind ViewModel.ScanIconVisibility, Mode=OneWay}" />
                         <TextBlock Text="扫描设备" />
                     </StackPanel>
                 </Button>
                 <Button Command="{x:Bind ViewModel.ToggleConnectionCommand}"
+                        IsEnabled="{x:Bind ViewModel.CanToggleConnect, Mode=OneWay}"
                         VerticalAlignment="Bottom">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE701;" FontSize="14" />
+                        <ProgressRing IsActive="True" Width="14" Height="14"
+                                      Visibility="{x:Bind ViewModel.ConnectProgressVisibility, Mode=OneWay}" />
+                        <FontIcon Glyph="&#xE701;" FontSize="14"
+                                  Visibility="{x:Bind ViewModel.ConnectIconVisibility, Mode=OneWay}" />
                         <TextBlock Text="{x:Bind ViewModel.ConnectionButtonText, Mode=OneWay}" />
                     </StackPanel>
                 </Button>
@@ -63,9 +73,9 @@
 
             <!-- 右侧：控制参数调节区 -->
             <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    CornerRadius="8" Padding="16">
-                <ScrollViewer>
-                    <StackPanel Spacing="18">
+                    CornerRadius="8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="18" Padding="16,16,20,16">
                         <TextBlock Text="相机硬件控制" Style="{ThemeResource SubtitleTextBlockStyle}" />
 
                         <!-- 基础快捷操作 -->
@@ -113,13 +123,24 @@
                         </StackPanel>
 
                         <!-- 传输码率设置 -->
-                        <StackPanel Spacing="4">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="传输码率 (kbps)" />
-                                <TextBlock Text="{x:Bind ViewModel.Bitrate, Mode=OneWay}" Margin="8,0,0,0" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                            </StackPanel>
-                            <Slider Value="{x:Bind ViewModel.Bitrate, Mode=TwoWay}"
-                                    Minimum="1000" Maximum="20000" StepFrequency="500" />
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="传输码率限制" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="96" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox Grid.Column="0"
+                                           Value="{x:Bind ViewModel.BitrateInputValue, Mode=TwoWay}"
+                                           SpinButtonPlacementMode="Hidden"
+                                           LostFocus="OnBitrateInputLostFocus"
+                                           KeyDown="OnBitrateInputKeyDown" />
+                                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                                          SelectedIndex="{x:Bind ViewModel.SelectedBitrateUnitIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="kbps" />
+                                    <ComboBoxItem Content="Mbps" />
+                                </ComboBox>
+                            </Grid>
                         </StackPanel>
 
                         <MenuFlyoutSeparator />

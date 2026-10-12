@@ -61,8 +61,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     "set_bitrate" -> {
                         val bitrate = json.optInt("int_value", 4000)
-                        // 将 1000kbps~20000kbps 映射为合理的 JPEG 压缩质量 40~95
-                        val quality = (40 + (bitrate - 1000) * 55 / 19000).coerceIn(40, 95)
+                        // 20kbps~400000kbps (400Mbps) 动态映射压缩质量 (15~95)
+                        val quality = when {
+                            bitrate <= 100 -> 15
+                            bitrate <= 1000 -> 25 + (bitrate - 100) * 20 / 900
+                            bitrate <= 10000 -> 45 + (bitrate - 1000) * 35 / 9000
+                            else -> 80 + ((bitrate - 10000).coerceAtMost(390000) * 15 / 390000)
+                        }.coerceIn(15, 95)
                         cameraManager.frameQuality = quality
                     }
                 }

@@ -52,7 +52,37 @@ namespace CamLinks.ViewModels
         private bool _isVirtualCameraRunning;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanScan))]
+        [NotifyPropertyChangedFor(nameof(CanToggleConnect))]
+        [NotifyPropertyChangedFor(nameof(ScanProgressVisibility))]
+        [NotifyPropertyChangedFor(nameof(ScanIconVisibility))]
         private bool _isScanning;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanScan))]
+        [NotifyPropertyChangedFor(nameof(CanToggleConnect))]
+        [NotifyPropertyChangedFor(nameof(ConnectProgressVisibility))]
+        [NotifyPropertyChangedFor(nameof(ConnectIconVisibility))]
+        private bool _isConnecting;
+
+        public bool CanScan => !IsScanning && !IsConnecting && !IsConnected;
+        public bool CanToggleConnect => !IsConnecting && !IsScanning;
+
+        public Microsoft.UI.Xaml.Visibility ScanProgressVisibility =>
+            IsScanning ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+        public Microsoft.UI.Xaml.Visibility ScanIconVisibility =>
+            IsScanning ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+
+        public Microsoft.UI.Xaml.Visibility ConnectProgressVisibility =>
+            IsConnecting ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+        public Microsoft.UI.Xaml.Visibility ConnectIconVisibility =>
+            IsConnecting ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+
+        [ObservableProperty]
+        private double _bitrateInputValue = 4.0; // 默认 4 Mbps
+
+        [ObservableProperty]
+        private int _selectedBitrateUnitIndex = 1; // 0: kbps, 1: Mbps
 
         [ObservableProperty]
         private ImageSource? _previewSource;
@@ -76,14 +106,45 @@ namespace CamLinks.ViewModels
             }
         }
 
-        partial void OnBitrateChanged(int value)
+        partial void OnSelectedBitrateUnitIndexChanged(int value)
         {
+            // 切换单位时自动换算当前输入框的值
+            if (value == 1)
+            {
+                BitrateInputValue = System.Math.Round(BitrateInputValue / 1000.0, 2);
+            }
+            else
+            {
+                BitrateInputValue = System.Math.Round(BitrateInputValue * 1000.0);
+            }
+            ApplyBitrate();
+        }
+
+        public void ApplyBitrate()
+        {
+            bool isMbps = SelectedBitrateUnitIndex == 1;
+            double minAllowed = isMbps ? 0.02 : 20.0;
+            double maxAllowed = isMbps ? 400.0 : 400000.0;
+
+            if (BitrateInputValue < minAllowed)
+            {
+                BitrateInputValue = minAllowed;
+            }
+            else if (BitrateInputValue > maxAllowed)
+            {
+                BitrateInputValue = maxAllowed;
+            }
+
+            int totalKbps = isMbps ? (int)System.Math.Round(BitrateInputValue * 1000.0) : (int)System.Math.Round(BitrateInputValue);
+            totalKbps = System.Math.Clamp(totalKbps, 20, 400000);
+            Bitrate = totalKbps;
+
             if (IsConnected)
             {
                 _ = _networkService.SendCommandAsync(new CameraControlCommand
                 {
                     Action = "set_bitrate",
-                    IntValue = value
+                    IntValue = totalKbps
                 });
             }
         }
@@ -150,6 +211,7 @@ namespace CamLinks.ViewModels
             }
             else
             {
+                IsConnecting = true;
                 StatusMessage = "正在建立 TLS 加密连接...";
                 try
                 {
@@ -158,6 +220,10 @@ namespace CamLinks.ViewModels
                 catch (System.Exception ex)
                 {
                     StatusMessage = $"连接失败: {ex.Message}";
+                }
+                finally
+                {
+                    IsConnecting = false;
                 }
             }
         }
