@@ -41,6 +41,9 @@ namespace CamLinks.ViewModels
         [ObservableProperty]
         private int _maxExposure = 4;
 
+        private bool _isSyncingFromDevice;
+        private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+
         [ObservableProperty]
         private int _bitrate = 4000; // 单位 kbps
 
@@ -49,6 +52,30 @@ namespace CamLinks.ViewModels
 
         [ObservableProperty]
         private bool _isScanning;
+
+        partial void OnExposureChanged(int value)
+        {
+            if (IsConnected && !_isSyncingFromDevice)
+            {
+                _ = _networkService.SendCommandAsync(new CameraControlCommand
+                {
+                    Action = "set_exposure",
+                    IntValue = value
+                });
+            }
+        }
+
+        partial void OnBitrateChanged(int value)
+        {
+            if (IsConnected)
+            {
+                _ = _networkService.SendCommandAsync(new CameraControlCommand
+                {
+                    Action = "set_bitrate",
+                    IntValue = value
+                });
+            }
+        }
 
         public MainViewModel()
         {
@@ -152,11 +179,16 @@ namespace CamLinks.ViewModels
 
         private void OnDeviceStateReceived(CameraDeviceState state)
         {
-            IsTorchOn = state.IsTorchOn;
-            Exposure = state.ExposureCompensation;
-            MinExposure = state.MinExposure;
-            MaxExposure = state.MaxExposure;
-            Bitrate = state.Bitrate;
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                _isSyncingFromDevice = true;
+                IsTorchOn = state.IsTorchOn;
+                Exposure = state.ExposureCompensation;
+                MinExposure = state.MinExposure;
+                MaxExposure = state.MaxExposure;
+                Bitrate = state.Bitrate;
+                _isSyncingFromDevice = false;
+            });
         }
     }
 }

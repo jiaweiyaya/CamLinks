@@ -6,6 +6,8 @@ import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -21,6 +23,7 @@ class CameraManager(private val context: Context) {
     private var camera: Camera? = null
     private var cameraControl: CameraControl? = null
     private var cameraInfo: CameraInfo? = null
+    private var imageCapture: ImageCapture? = null
 
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
@@ -38,6 +41,8 @@ class CameraManager(private val context: Context) {
                 it.surfaceProvider = previewView.surfaceProvider
             }
 
+            imageCapture = ImageCapture.Builder().build()
+
             val cameraSelector = CameraSelector.Builder()
                 .requireLensFacing(lensFacing)
                 .build()
@@ -47,7 +52,8 @@ class CameraManager(private val context: Context) {
                 camera = cameraProvider?.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
-                    preview
+                    preview,
+                    imageCapture
                 )
 
                 cameraControl = camera?.cameraControl
@@ -87,6 +93,35 @@ class CameraManager(private val context: Context) {
         val point = factory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point).build()
         cameraControl?.startFocusAndMetering(action)
+    }
+
+    fun takePhoto() {
+        val capture = imageCapture ?: return
+        val contentValues = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "CamLinks_${System.currentTimeMillis()}.jpg")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "DCIM/Camera")
+        }
+
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(
+            context.contentResolver,
+            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentValues
+        ).build()
+
+        capture.takePicture(
+            outputOptions,
+            cameraExecutor,
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    android.util.Log.i("CamLinks", "Photo saved to gallery: " + outputFileResults.savedUri)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    android.util.Log.e("CamLinks", "Photo capture failed", exception)
+                }
+            }
+        )
     }
 
     fun release() {

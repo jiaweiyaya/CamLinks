@@ -25,18 +25,10 @@ namespace CamLinks.Services
 
         public bool IsConnected => _webSocket?.State == WebSocketState.Open;
 
-        public async Task<string?> DiscoverDeviceAsync(int discoveryPort = 8444, int timeoutMs = 2500)
+        public async Task<string?> DiscoverDeviceAsync(int targetPort = 8443, int timeoutMs = 1200)
         {
-            using var udpClient = new UdpClient();
-            udpClient.EnableBroadcast = true;
-            var requestBytes = Encoding.UTF8.GetBytes("CAMLINKS_DISCOVER");
-
-            // 计算所有物理网卡的定向广播地址，绕过虚拟网卡阻断
-            var broadcastTargets = new System.Collections.Generic.List<IPEndPoint>
-            {
-                new IPEndPoint(IPAddress.Broadcast, discoveryPort)
-            };
-
+            // 获取本机所有活动的物理网卡 IPv4 地址
+            var localIps = new System.Collections.Generic.List<IPAddress>();
             foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (ni.OperationalStatus == OperationalStatus.Up &&
@@ -44,44 +36,60 @@ namespace CamLinks.Services
                 {
                     foreach (var u in ni.GetIPProperties().UnicastAddresses)
                     {
-                        if (u.Address.AddressFamily == AddressFamily.InterNetwork && u.IPv4Mask != null)
+                        if (u.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(u.Address))
                         {
-                            var ipBytes = u.Address.GetAddressBytes();
-                            var maskBytes = u.IPv4Mask.GetAddressBytes();
-                            var broadcastBytes = new byte[4];
-                            for (int i = 0; i < 4; i++)
-                            {
-                                broadcastBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
-                            }
-                            broadcastTargets.Add(new IPEndPoint(new IPAddress(broadcastBytes), discoveryPort));
+                            localIps.Add(u.Address);
                         }
                     }
                 }
             }
 
-            foreach (var ep in broadcastTargets)
-            {
-                try { await udpClient.SendAsync(requestBytes, requestBytes.Length, ep); } catch { }
-            }
+            var cts = new CancellationTokenSource(timeoutMs);
+            var scanTasks = new System.Collections.Generic.List<Task<string?>>();
 
-            using var cts = new CancellationTokenSource(timeoutMs);
-            try
+            // 并发探测同子网所有 IP 的 8443 服务端口，免疫任何路由器的广播隔离
+            foreach (var localIp in localIps)
             {
-                var receiveTask = udpClient.ReceiveAsync();
-                var completedTask = await Task.WhenAny(receiveTask, Task.Delay(timeoutMs, cts.Token));
-                if (completedTask == receiveTask)
+                var bytes = localIp.GetAddressBytes();
+                var subnetPrefix = $"{bytes[0]}.{bytes[1]}.{bytes[2]}.";
+
+                for (int i = 1; i <= 254; i++)
                 {
-                    var result = await receiveTask;
-                    var response = Encoding.UTF8.GetString(result.Buffer);
-                    if (response.StartsWith("CAMLINKS_OFFER"))
+                    if (i == bytes[3]) continue; // 跳过本机
+                    var testIp = subnetPrefix + i;
+                    scanTasks.Add(Task.Run(async () =>
                     {
-                        return result.RemoteEndPoint.Address.ToString();
-                    }
+                        try
+                        {
+                            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                            var connectTask = socket.ConnectAsync(testIp, targetPort);
+                            var delayTask = Task.Delay(timeoutMs, cts.Token);
+                            if (await Task.WhenAny(connectTask, delayTask) == connectTask && socket.Connected)
+                            {
+                                cts.Cancel(); // 找到设备立刻通知其余任务停止
+                                return testIp;
+                            }
+                        }
+                        catch { }
+                        return null;
+                    }));
                 }
             }
-            catch
+
+            try
             {
+                while (scanTasks.Count > 0)
+                {
+                    var completed = await Task.WhenAny(scanTasks);
+                    var found = await completed;
+                    if (!string.IsNullOrEmpty(found))
+                    {
+                        return found;
+                    }
+                    scanTasks.Remove(completed);
+                }
             }
+            catch { }
 
             return null;
         }

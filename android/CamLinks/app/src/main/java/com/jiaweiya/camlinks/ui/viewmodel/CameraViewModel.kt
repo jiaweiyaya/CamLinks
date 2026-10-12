@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 class CameraViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -23,6 +24,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         startTlsServer()
     }
 
+    private var currentLifecycleOwner: LifecycleOwner? = null
+    private var currentPreviewView: PreviewView? = null
+
     private fun startTlsServer() {
         try {
             tlsServer = com.jiaweiya.camlinks.logic.network.TlsCamServer { action, json ->
@@ -31,11 +35,30 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         val enabled = json.optBoolean("bool_value", false)
                         cameraManager.setTorch(enabled)
                         _uiState.update { it.copy(isTorchOn = enabled) }
+                        syncDeviceState()
                     }
                     "set_exposure" -> {
                         val ev = json.optInt("int_value", 0)
                         cameraManager.setExposure(ev)
                         _uiState.update { it.copy(exposureCompensation = ev) }
+                        syncDeviceState()
+                    }
+                    "switch_camera" -> {
+                        currentLifecycleOwner?.let { owner ->
+                            currentPreviewView?.let { view ->
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                    toggleCameraFacing(owner, view)
+                                    syncDeviceState()
+                                }
+                            }
+                        }
+                    }
+                    "capture_photo" -> {
+                        cameraManager.takePhoto()
+                    }
+                    "set_bitrate" -> {
+                        val bitrate = json.optInt("int_value", 4000)
+                        android.util.Log.i("CamLinks", "Bitrate updated to: $bitrate kbps")
                     }
                 }
             }
@@ -46,10 +69,26 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun syncDeviceState() {
+        val state = _uiState.value
+        val json = org.json.JSONObject().apply {
+            put("is_torch_on", state.isTorchOn)
+            put("lens_facing", state.lensFacing)
+            put("exposure_compensation", state.exposureCompensation)
+            put("min_exposure", state.minExposureCompensation)
+            put("max_exposure", state.maxExposureCompensation)
+            put("zoom_ratio", state.zoomRatio.toDouble())
+            put("bitrate", 4000)
+        }
+        tlsServer?.broadcastState(json.toString())
+    }
+
     private val _uiState = MutableStateFlow(CameraUiState())
     val uiState: StateFlow<CameraUiState> = _uiState.asStateFlow()
 
     fun bindCamera(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+        currentLifecycleOwner = lifecycleOwner
+        currentPreviewView = previewView
         cameraManager.startCamera(
             lifecycleOwner = lifecycleOwner,
             previewView = previewView,
@@ -63,6 +102,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     maxExposureCompensation = maxExp
                 )
             }
+            syncDeviceState()
         }
     }
 
