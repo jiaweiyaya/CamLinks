@@ -58,6 +58,12 @@ dependencies {
     // 协程支持（用于后台编码与网络传输）
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
+    // WebSocket 服务端（用于 TLS/WSS 双向加密长连接）
+    implementation("org.java-websocket:Java-WebSocket:1.5.7")
+
+    // Bouncy Castle（用于在手机端生成自签名 TLS/SSL 证书）
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

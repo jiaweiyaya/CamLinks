@@ -47,10 +47,35 @@ namespace CamLinks.ViewModels
         [ObservableProperty]
         private bool _isVirtualCameraRunning;
 
+        [ObservableProperty]
+        private bool _isScanning;
+
         public MainViewModel()
         {
             _networkService.ConnectionStateChanged += OnConnectionStateChanged;
             _networkService.StateReceived += OnDeviceStateReceived;
+        }
+
+        [RelayCommand]
+        public async Task ScanDeviceAsync()
+        {
+            if (IsScanning || IsConnected) return;
+
+            IsScanning = true;
+            StatusMessage = "正在扫描局域网中的 CamLinks 设备...";
+            var foundIp = await _networkService.DiscoverDeviceAsync();
+            IsScanning = false;
+
+            if (!string.IsNullOrEmpty(foundIp))
+            {
+                TargetIp = foundIp;
+                StatusMessage = $"已发现手机 [{foundIp}]，正在建立连接...";
+                await ToggleConnectionAsync();
+            }
+            else
+            {
+                StatusMessage = "未发现手机，请确保手机与电脑在同一 Wi-Fi 下且已打开 App";
+            }
         }
 
         [RelayCommand]
@@ -67,9 +92,9 @@ namespace CamLinks.ViewModels
                 {
                     await _networkService.ConnectAsync(TargetIp, TargetPort);
                 }
-                catch
+                catch (System.Exception ex)
                 {
-                    StatusMessage = "连接失败，请检查手机 IP 与端口";
+                    StatusMessage = $"连接失败: {ex.Message}";
                 }
             }
         }

@@ -1,6 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Net.Security;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -22,12 +25,76 @@ namespace CamLinks.Services
 
         public bool IsConnected => _webSocket?.State == WebSocketState.Open;
 
+        public async Task<string?> DiscoverDeviceAsync(int discoveryPort = 8444, int timeoutMs = 2500)
+        {
+            using var udpClient = new UdpClient();
+            udpClient.EnableBroadcast = true;
+            var requestBytes = Encoding.UTF8.GetBytes("CAMLINKS_DISCOVER");
+
+            // 计算所有物理网卡的定向广播地址，绕过虚拟网卡阻断
+            var broadcastTargets = new System.Collections.Generic.List<IPEndPoint>
+            {
+                new IPEndPoint(IPAddress.Broadcast, discoveryPort)
+            };
+
+            foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus == OperationalStatus.Up &&
+                    (ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 || ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet))
+                {
+                    foreach (var u in ni.GetIPProperties().UnicastAddresses)
+                    {
+                        if (u.Address.AddressFamily == AddressFamily.InterNetwork && u.IPv4Mask != null)
+                        {
+                            var ipBytes = u.Address.GetAddressBytes();
+                            var maskBytes = u.IPv4Mask.GetAddressBytes();
+                            var broadcastBytes = new byte[4];
+                            for (int i = 0; i < 4; i++)
+                            {
+                                broadcastBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
+                            }
+                            broadcastTargets.Add(new IPEndPoint(new IPAddress(broadcastBytes), discoveryPort));
+                        }
+                    }
+                }
+            }
+
+            foreach (var ep in broadcastTargets)
+            {
+                try { await udpClient.SendAsync(requestBytes, requestBytes.Length, ep); } catch { }
+            }
+
+            using var cts = new CancellationTokenSource(timeoutMs);
+            try
+            {
+                var receiveTask = udpClient.ReceiveAsync();
+                var completedTask = await Task.WhenAny(receiveTask, Task.Delay(timeoutMs, cts.Token));
+                if (completedTask == receiveTask)
+                {
+                    var result = await receiveTask;
+                    var response = Encoding.UTF8.GetString(result.Buffer);
+                    if (response.StartsWith("CAMLINKS_OFFER"))
+                    {
+                        return result.RemoteEndPoint.Address.ToString();
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
         public async Task ConnectAsync(string host, int port)
         {
             Disconnect();
 
             _cancellationTokenSource = new CancellationTokenSource();
             _webSocket = new ClientWebSocket();
+
+            // 禁用系统代理，防止被 Clash 代理拦截局域网流量
+            _webSocket.Options.Proxy = null;
 
             // 局域网自签名证书安全信任回调
             _webSocket.Options.RemoteCertificateValidationCallback = ValidateServerCertificate;

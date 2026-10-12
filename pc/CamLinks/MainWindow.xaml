@@ -25,6 +25,13 @@
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <TextBox Header="手机 IP" Text="{x:Bind ViewModel.TargetIp, Mode=TwoWay}" Width="160" />
                 <NumberBox Header="端口" Value="{x:Bind ViewModel.TargetPort, Mode=TwoWay}" SpinButtonPlacementMode="Compact" Width="100" />
+                <Button Command="{x:Bind ViewModel.ScanDeviceCommand}"
+                        VerticalAlignment="Bottom">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xEE6F;" FontSize="14" />
+                        <TextBlock Text="扫描设备" />
+                    </StackPanel>
+                </Button>
                 <Button Command="{x:Bind ViewModel.ToggleConnectionCommand}"
                         VerticalAlignment="Bottom">
                     <StackPanel Orientation="Horizontal" Spacing="6">
