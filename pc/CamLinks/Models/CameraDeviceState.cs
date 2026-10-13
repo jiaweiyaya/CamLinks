@@ -24,5 +24,29 @@ namespace CamLinks.Models
 
         [JsonPropertyName("bitrate")]
         public int Bitrate { get; set; } = 4000;
+
+        [JsonPropertyName("current_resolution")]
+        public string CurrentResolution { get; set; } = "1920x1080";
+
+        [JsonPropertyName("current_fps")]
+        public int CurrentFps { get; set; } = 30;
+
+        [JsonPropertyName("supported_resolutions")]
+        public System.Collections.Generic.List<string>? SupportedResolutions { get; set; }
+
+        [JsonPropertyName("supported_fps")]
+        public System.Collections.Generic.List<int>? SupportedFps { get; set; }
+
+        [JsonPropertyName("aperture")]
+        public string Aperture { get; set; } = "f/1.8";
+
+        [JsonPropertyName("shutter")]
+        public string Shutter { get; set; } = "1/100s";
+
+        [JsonPropertyName("iso")]
+        public string Iso { get; set; } = "ISO 100";
+
+        [JsonPropertyName("focal_length")]
+        public string FocalLength { get; set; } = "26mm";
     }
 }

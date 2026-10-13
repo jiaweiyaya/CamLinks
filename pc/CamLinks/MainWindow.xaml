@@ -76,6 +76,52 @@
                     CornerRadius="8">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="18" Padding="16,16,20,16">
+                        <!-- 数据实时显示看板 -->
+                        <TextBlock Text="数据实时显示" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+                                CornerRadius="6" Padding="12">
+                            <StackPanel Spacing="8">
+                                <Grid>
+                                    <TextBlock Text="实时传输码率" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{x:Bind ViewModel.LiveBitrate, Mode=OneWay}" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="实时视频帧率" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{x:Bind ViewModel.LiveFps, Mode=OneWay}" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="画面实际分辨率" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{x:Bind ViewModel.LiveResolution, Mode=OneWay}" HorizontalAlignment="Right" />
+                                </Grid>
+                                <MenuFlyoutSeparator Margin="0,2,0,2" />
+                                <Grid>
+                                    <TextBlock Text="物理光圈 / 快门" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock HorizontalAlignment="Right">
+                                        <Run Text="{x:Bind ViewModel.LiveAperture, Mode=OneWay}" />
+                                        <Run Text=" | " />
+                                        <Run Text="{x:Bind ViewModel.LiveShutter, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="感光度 / 焦距" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock HorizontalAlignment="Right">
+                                        <Run Text="{x:Bind ViewModel.LiveIso, Mode=OneWay}" />
+                                        <Run Text=" | " />
+                                        <Run Text="{x:Bind ViewModel.LiveFocalLength, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="当前曝光补偿" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock HorizontalAlignment="Right">
+                                        <Run Text="{x:Bind ViewModel.Exposure, Mode=OneWay}" />
+                                        <Run Text=" EV" />
+                                    </TextBlock>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <MenuFlyoutSeparator />
+
                         <TextBlock Text="相机硬件控制" Style="{ThemeResource SubtitleTextBlockStyle}" />
 
                         <!-- 基础快捷操作 -->
@@ -122,18 +168,25 @@
                                     StepFrequency="1" />
                         </StackPanel>
 
-                        <!-- 画面分辨率选择 -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="视频分辨率" />
-                            <ComboBox HorizontalAlignment="Stretch"
-                                      SelectedIndex="{x:Bind ViewModel.SelectedResolutionIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="4K 超高清 (3840x2160)" />
-                                <ComboBoxItem Content="2K 极清 (2560x1440)" />
-                                <ComboBoxItem Content="1080p 全高清 (1920x1080)" />
-                                <ComboBoxItem Content="720p 高清 (1280x720)" />
-                                <ComboBoxItem Content="480p 标清 (640x480)" />
-                            </ComboBox>
-                        </StackPanel>
+                        <!-- 画面分辨率与帧率选择 -->
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="100" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="6">
+                                <TextBlock Text="视频分辨率" />
+                                <ComboBox HorizontalAlignment="Stretch"
+                                          ItemsSource="{x:Bind ViewModel.AvailableResolutions, Mode=OneWay}"
+                                          SelectedItem="{x:Bind ViewModel.SelectedResolution, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="6">
+                                <TextBlock Text="帧率 (FPS)" />
+                                <ComboBox HorizontalAlignment="Stretch"
+                                          ItemsSource="{x:Bind ViewModel.AvailableFpsList, Mode=OneWay}"
+                                          SelectedItem="{x:Bind ViewModel.SelectedFps, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Grid>
 
                         <!-- 传输码率设置 -->
                         <StackPanel Spacing="6">

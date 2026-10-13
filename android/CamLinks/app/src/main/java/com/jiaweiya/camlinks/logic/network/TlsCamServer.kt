@@ -11,6 +11,7 @@ import java.net.InetSocketAddress
 
 class TlsCamServer(
     port: Int = 8443,
+    var onClientConnected: (() -> Unit)? = null,
     private val onCommandReceived: (action: String, json: JSONObject) -> Unit
 ) : WebSocketServer(InetSocketAddress(port)) {
 
@@ -26,6 +27,7 @@ class TlsCamServer(
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
         Log.i(TAG, "Client connected: " + conn.remoteSocketAddress)
+        onClientConnected?.invoke()
     }
 
     override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {

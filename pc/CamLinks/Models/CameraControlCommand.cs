@@ -27,5 +27,8 @@ namespace CamLinks.Models
 
         [JsonPropertyName("height")]
         public int? Height { get; set; }
+
+        [JsonPropertyName("fps")]
+        public int? Fps { get; set; }
     }
 }

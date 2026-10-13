@@ -98,8 +98,41 @@ namespace CamLinks.ViewModels
         [ObservableProperty]
         private int _selectedBitrateUnitIndex = 1; // 0: kbps, 1: Mbps
 
+        public System.Collections.ObjectModel.ObservableCollection<string> AvailableResolutions { get; } = new();
+        public System.Collections.ObjectModel.ObservableCollection<int> AvailableFpsList { get; } = new();
+
         [ObservableProperty]
-        private int _selectedResolutionIndex = 2; // 默认 1080p
+        private string? _selectedResolution;
+
+        [ObservableProperty]
+        private int? _selectedFps;
+
+        // 实时传输与硬件监控看板属性
+        [ObservableProperty]
+        private string _liveBitrate = "0.00 Mbps";
+
+        [ObservableProperty]
+        private string _liveFps = "0.0 FPS";
+
+        [ObservableProperty]
+        private string _liveResolution = "--";
+
+        [ObservableProperty]
+        private string _liveAperture = "--";
+
+        [ObservableProperty]
+        private string _liveShutter = "--";
+
+        [ObservableProperty]
+        private string _liveIso = "--";
+
+        [ObservableProperty]
+        private string _liveFocalLength = "--";
+
+        private long _bytesSampled = 0;
+        private readonly System.Diagnostics.Stopwatch _fpsStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        private readonly System.Collections.Generic.Queue<double> _frameTimestamps = new();
+        private Microsoft.UI.Xaml.DispatcherTimer? _statsTimer;
 
         [ObservableProperty]
         private ImageSource? _previewSource;
@@ -137,24 +170,30 @@ namespace CamLinks.ViewModels
             ApplyBitrate();
         }
 
-        partial void OnSelectedResolutionIndexChanged(int value)
+        partial void OnSelectedResolutionChanged(string? value)
         {
-            if (!IsConnected) return;
+            if (!IsConnected || _isSyncingFromDevice || string.IsNullOrEmpty(value)) return;
 
-            (int width, int height) = value switch
+            var parts = value.Split('x');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h))
             {
-                0 => (3840, 2160), // 4K 超高清
-                1 => (2560, 1440), // 2K 高清
-                2 => (1920, 1080), // 1080p 全高清
-                3 => (1280, 720),  // 720p 高清
-                _ => (640, 480)    // 480p 标清
-            };
+                _ = _networkService.SendCommandAsync(new CameraControlCommand
+                {
+                    Action = "set_resolution",
+                    Width = w,
+                    Height = h
+                });
+            }
+        }
+
+        partial void OnSelectedFpsChanged(int? value)
+        {
+            if (!IsConnected || _isSyncingFromDevice || !value.HasValue) return;
 
             _ = _networkService.SendCommandAsync(new CameraControlCommand
             {
-                Action = "set_resolution",
-                Width = width,
-                Height = height
+                Action = "set_fps",
+                Fps = value.Value
             });
         }
 
@@ -197,10 +236,59 @@ namespace CamLinks.ViewModels
             {
                 _virtualCameraService.Start();
             }
+
+            // 0.1s (100ms) 高速刷新传输码率与实时视频帧率
+            _statsTimer = new Microsoft.UI.Xaml.DispatcherTimer
+            {
+                Interval = System.TimeSpan.FromMilliseconds(100)
+            };
+            _statsTimer.Tick += (s, e) =>
+            {
+                if (IsConnected)
+                {
+                    double mbps = (_bytesSampled * 8.0) / (1024.0 * 1024.0) / 0.1;
+                    LiveBitrate = $"{mbps:F2} Mbps";
+
+                    // 计算过去 1.0 秒滑动窗口内的精确平滑帧率
+                    double now = _fpsStopwatch.Elapsed.TotalSeconds;
+                    lock (_frameTimestamps)
+                    {
+                        while (_frameTimestamps.Count > 0 && now - _frameTimestamps.Peek() > 1.0)
+                        {
+                            _frameTimestamps.Dequeue();
+                        }
+
+                        if (_frameTimestamps.Count >= 2)
+                        {
+                            double duration = now - _frameTimestamps.Peek();
+                            double realFps = (_frameTimestamps.Count - 1) / duration;
+                            LiveFps = $"{realFps:F1} FPS";
+                        }
+                        else
+                        {
+                            LiveFps = $"{_frameTimestamps.Count:F1} FPS";
+                        }
+                    }
+                }
+                else
+                {
+                    LiveBitrate = "0.00 Mbps";
+                    LiveFps = "0.0 FPS";
+                    lock (_frameTimestamps) { _frameTimestamps.Clear(); }
+                }
+                _bytesSampled = 0;
+            };
+            _statsTimer.Start();
         }
 
         private void OnVideoFrameReceived(byte[] frameBytes)
         {
+            System.Threading.Interlocked.Add(ref _bytesSampled, frameBytes.Length);
+            lock (_frameTimestamps)
+            {
+                _frameTimestamps.Enqueue(_fpsStopwatch.Elapsed.TotalSeconds);
+            }
+
             _dispatcherQueue.TryEnqueue(async () =>
             {
                 try
@@ -214,6 +302,7 @@ namespace CamLinks.ViewModels
                     var bitmap = new BitmapImage();
                     await bitmap.SetSourceAsync(stream).AsTask();
                     PreviewSource = bitmap;
+                    LiveResolution = $"{bitmap.PixelWidth}x{bitmap.PixelHeight}";
                     if (!HasVideoFrame)
                     {
                         HasVideoFrame = true;
@@ -345,6 +434,59 @@ namespace CamLinks.ViewModels
                 MinExposure = state.MinExposure;
                 MaxExposure = state.MaxExposure;
                 Bitrate = state.Bitrate;
+
+                if (state.SupportedResolutions != null && state.SupportedResolutions.Count > 0)
+                {
+                    bool isSame = AvailableResolutions.Count == state.SupportedResolutions.Count;
+                    if (isSame)
+                    {
+                        for (int i = 0; i < AvailableResolutions.Count; i++)
+                        {
+                            if (AvailableResolutions[i] != state.SupportedResolutions[i]) { isSame = false; break; }
+                        }
+                    }
+
+                    if (!isSame)
+                    {
+                        AvailableResolutions.Clear();
+                        foreach (var res in state.SupportedResolutions)
+                        {
+                            AvailableResolutions.Add(res);
+                        }
+                        SelectedResolution = AvailableResolutions.Contains(state.CurrentResolution)
+                            ? state.CurrentResolution
+                            : AvailableResolutions[0];
+                    }
+                }
+
+                if (state.SupportedFps != null && state.SupportedFps.Count > 0)
+                {
+                    bool isSame = AvailableFpsList.Count == state.SupportedFps.Count;
+                    if (isSame)
+                    {
+                        for (int i = 0; i < AvailableFpsList.Count; i++)
+                        {
+                            if (AvailableFpsList[i] != state.SupportedFps[i]) { isSame = false; break; }
+                        }
+                    }
+
+                    if (!isSame)
+                    {
+                        AvailableFpsList.Clear();
+                        foreach (var fps in state.SupportedFps)
+                        {
+                            AvailableFpsList.Add(fps);
+                        }
+                        SelectedFps = AvailableFpsList.Contains(state.CurrentFps)
+                            ? state.CurrentFps
+                            : AvailableFpsList[0];
+                    }
+                }
+
+                LiveAperture = state.Aperture;
+                LiveShutter = state.Shutter;
+                LiveIso = state.Iso;
+                LiveFocalLength = state.FocalLength;
                 _isSyncingFromDevice = false;
             });
         }

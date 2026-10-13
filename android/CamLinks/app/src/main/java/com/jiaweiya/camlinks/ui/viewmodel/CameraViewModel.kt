@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class CameraViewModel(application: Application) : AndroidViewModel(application) {
@@ -19,12 +20,22 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val discoveryServer = com.jiaweiya.camlinks.logic.network.DeviceDiscoveryServer(application)
     private var tlsServer: com.jiaweiya.camlinks.logic.network.TlsCamServer? = null
 
+    private var heartbeatJob: kotlinx.coroutines.Job? = null
+
     init {
         cameraManager.onFrameAvailable = { frameBytes ->
             tlsServer?.broadcastBinary(frameBytes)
         }
         discoveryServer.start()
         startTlsServer()
+
+        // 启动 1s 周期心跳任务，每秒自动将手机物理光圈、快门、ISO 等参数推给 PC
+        heartbeatJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            while (isActive) {
+                kotlinx.coroutines.delay(1000)
+                syncDeviceState()
+            }
+        }
     }
 
     private var currentLifecycleOwner: LifecycleOwner? = null
@@ -32,7 +43,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun startTlsServer() {
         try {
-            tlsServer = com.jiaweiya.camlinks.logic.network.TlsCamServer { action, json ->
+            tlsServer = com.jiaweiya.camlinks.logic.network.TlsCamServer(
+                onClientConnected = {
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        syncDeviceState()
+                    }
+                }
+            ) { action, json ->
                 when (action) {
                     "set_torch" -> {
                         val enabled = json.optBoolean("bool_value", false)
@@ -68,6 +85,18 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                             currentPreviewView?.let { view ->
                                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                                     bindCamera(owner, view)
+                                    syncDeviceState()
+                                }
+                            }
+                        }
+                    }
+                    "set_fps" -> {
+                        val fps = json.optInt("fps", 30)
+                        cameraManager.targetFps = fps
+                        currentLifecycleOwner?.let { owner ->
+                            currentPreviewView?.let { view ->
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                    bindCamera(owner, view)
                                 }
                             }
                         }
@@ -82,6 +111,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                             else -> 80 + ((bitrate - 10000).coerceAtMost(390000) * 15 / 390000)
                         }.coerceIn(15, 95)
                         cameraManager.frameQuality = quality
+                        cameraManager.maxBitrateKbps = bitrate
                     }
                 }
             }
@@ -94,6 +124,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun syncDeviceState() {
         val state = _uiState.value
+        val (supportedRes, supportedFps) = cameraManager.getCameraCapabilities(state.lensFacing)
         val json = org.json.JSONObject().apply {
             put("is_torch_on", state.isTorchOn)
             put("lens_facing", state.lensFacing)
@@ -102,6 +133,20 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             put("max_exposure", state.maxExposureCompensation)
             put("zoom_ratio", state.zoomRatio.toDouble())
             put("bitrate", 4000)
+            put("current_resolution", "${cameraManager.targetWidth}x${cameraManager.targetHeight}")
+            put("current_fps", cameraManager.targetFps)
+            put("aperture", cameraManager.currentAperture)
+            put("shutter", cameraManager.currentShutter)
+            put("iso", cameraManager.currentIso)
+            put("focal_length", cameraManager.currentFocalLength)
+
+            val resArray = org.json.JSONArray()
+            supportedRes.forEach { resArray.put(it) }
+            put("supported_resolutions", resArray)
+
+            val fpsArray = org.json.JSONArray()
+            supportedFps.forEach { fpsArray.put(it) }
+            put("supported_fps", fpsArray)
         }
         tlsServer?.broadcastState(json.toString())
     }
@@ -161,6 +206,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        heartbeatJob?.cancel()
         discoveryServer.stop()
         try { tlsServer?.stop() } catch (_: Exception) {}
         cameraManager.release()

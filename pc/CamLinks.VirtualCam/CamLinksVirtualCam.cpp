@@ -68,6 +68,8 @@ static void GetSharedMemoryResolution(int& outWidth, int& outHeight) {
                 outWidth = pHeader->width;
                 outHeight = pHeader->height;
             }
+
+
             UnmapViewOfFile(pView);
         }
         CloseHandle(hMem);
