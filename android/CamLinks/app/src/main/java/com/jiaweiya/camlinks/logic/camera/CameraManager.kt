@@ -29,6 +29,8 @@ class CameraManager(private val context: Context) {
     private var imageCapture: ImageCapture? = null
     private var imageAnalysis: ImageAnalysis? = null
     var frameQuality: Int = 75
+    var targetWidth: Int = 1920
+    var targetHeight: Int = 1080
     var onFrameAvailable: ((ByteArray) -> Unit)? = null
 
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -51,7 +53,7 @@ class CameraManager(private val context: Context) {
 
             imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setTargetResolution(android.util.Size(1920, 1080))
+                .setTargetResolution(android.util.Size(targetWidth, targetHeight))
                 .build().also { analysis ->
                     analysis.setAnalyzer(cameraExecutor) { imageProxy ->
                         try {

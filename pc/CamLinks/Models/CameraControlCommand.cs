@@ -21,5 +21,11 @@ namespace CamLinks.Models
 
         [JsonPropertyName("y")]
         public float? Y { get; set; }
+
+        [JsonPropertyName("width")]
+        public int? Width { get; set; }
+
+        [JsonPropertyName("height")]
+        public int? Height { get; set; }
     }
 }

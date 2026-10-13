@@ -122,6 +122,19 @@
                                     StepFrequency="1" />
                         </StackPanel>
 
+                        <!-- 画面分辨率选择 -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="视频分辨率" />
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      SelectedIndex="{x:Bind ViewModel.SelectedResolutionIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="4K 超高清 (3840x2160)" />
+                                <ComboBoxItem Content="2K 极清 (2560x1440)" />
+                                <ComboBoxItem Content="1080p 全高清 (1920x1080)" />
+                                <ComboBoxItem Content="720p 高清 (1280x720)" />
+                                <ComboBoxItem Content="480p 标清 (640x480)" />
+                            </ComboBox>
+                        </StackPanel>
+
                         <!-- 传输码率设置 -->
                         <StackPanel Spacing="6">
                             <TextBlock Text="传输码率限制" />

@@ -59,6 +59,19 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     "capture_photo" -> {
                         cameraManager.takePhoto()
                     }
+                    "set_resolution" -> {
+                        val w = json.optInt("width", 1920)
+                        val h = json.optInt("height", 1080)
+                        cameraManager.targetWidth = w
+                        cameraManager.targetHeight = h
+                        currentLifecycleOwner?.let { owner ->
+                            currentPreviewView?.let { view ->
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                    bindCamera(owner, view)
+                                }
+                            }
+                        }
+                    }
                     "set_bitrate" -> {
                         val bitrate = json.optInt("int_value", 4000)
                         // 20kbps~400000kbps (400Mbps) 动态映射压缩质量 (15~95)

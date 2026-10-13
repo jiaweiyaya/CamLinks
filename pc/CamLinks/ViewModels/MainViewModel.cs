@@ -99,6 +99,9 @@ namespace CamLinks.ViewModels
         private int _selectedBitrateUnitIndex = 1; // 0: kbps, 1: Mbps
 
         [ObservableProperty]
+        private int _selectedResolutionIndex = 2; // 默认 1080p
+
+        [ObservableProperty]
         private ImageSource? _previewSource;
 
         [ObservableProperty]
@@ -132,6 +135,27 @@ namespace CamLinks.ViewModels
                 BitrateInputValue = System.Math.Round(BitrateInputValue * 1000.0);
             }
             ApplyBitrate();
+        }
+
+        partial void OnSelectedResolutionIndexChanged(int value)
+        {
+            if (!IsConnected) return;
+
+            (int width, int height) = value switch
+            {
+                0 => (3840, 2160), // 4K 超高清
+                1 => (2560, 1440), // 2K 高清
+                2 => (1920, 1080), // 1080p 全高清
+                3 => (1280, 720),  // 720p 高清
+                _ => (640, 480)    // 480p 标清
+            };
+
+            _ = _networkService.SendCommandAsync(new CameraControlCommand
+            {
+                Action = "set_resolution",
+                Width = width,
+                Height = height
+            });
         }
 
         public void ApplyBitrate()
