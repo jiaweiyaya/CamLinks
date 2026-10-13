@@ -45,3 +45,6 @@ Release/
 *.dll
 *.lib
 *.exp
+
+# 其他
+*.code-workspace
