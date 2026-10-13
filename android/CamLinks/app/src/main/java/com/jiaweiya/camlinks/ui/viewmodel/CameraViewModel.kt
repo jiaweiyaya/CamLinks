@@ -97,6 +97,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                             currentPreviewView?.let { view ->
                                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                                     bindCamera(owner, view)
+                                    syncDeviceState()
                                 }
                             }
                         }
