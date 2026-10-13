@@ -48,6 +48,7 @@ static void BuildDynamicVideoMediaType(AM_MEDIA_TYPE* pmt, int width, int height
     vih->bmiHeader.biHeight = height;
     vih->bmiHeader.biPlanes = 1;
     vih->bmiHeader.biBitCount = 32;
+
     vih->bmiHeader.biCompression = BI_RGB;
     vih->bmiHeader.biSizeImage = width * height * 4;
 

@@ -1,4 +1,0 @@
-﻿  CamLinksVirtualCam.cpp
-E:\Desktop_links\Android_save\AndroidStuido\Camlinks-mix\pc\CamLinks.VirtualCam\CamLinksVirtualCam.cpp(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
-    正在创建库 E:\Desktop_links\Android_save\AndroidStuido\Camlinks-mix\pc\CamLinks\x64\Debug\CamLinks.VirtualCam.lib 和对象 E:\Desktop_links\Android_save\AndroidStuido\Camlinks-mix\pc\CamLinks\x64\Debug\CamLinks.VirtualCam.exp
-  CamLinks.VirtualCam.vcxproj -> E:\Desktop_links\Android_save\AndroidStuido\Camlinks-mix\pc\CamLinks\x64\Debug\CamLinks.VirtualCam.dll

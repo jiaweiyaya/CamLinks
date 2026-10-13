@@ -24,3 +24,24 @@ captures/
 *.sln.docstates
 packages/
 Generated Files/
+
+# C++ MSVC 编译产物与中间临时缓存
+x64/
+x86/
+ARM64/
+*/x64/
+*/x86/
+*/ARM64/
+Debug/
+Release/
+*/Debug/
+*/Release/
+*.obj
+*.ilk
+*.pdb
+*.idb
+*.tlog
+*.log
+*.dll
+*.lib
+*.exp
