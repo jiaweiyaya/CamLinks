@@ -41,35 +41,26 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsState()
 
-    val previewView = remember {
-        PreviewView(context).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        }
-    }
-
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
-            factory = { previewView },
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        viewModel.triggerFocus(
-                            offset.x,
-                            offset.y,
-                            size.width.toFloat(),
-                            size.height.toFloat()
-                        )
+            factory = { ctx ->
+                android.view.TextureView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                        override fun onSurfaceTextureAvailable(surfaceTexture: android.graphics.SurfaceTexture, width: Int, height: Int) {
+                            viewModel.onPreviewSurfaceTextureReady(surfaceTexture)
+                        }
+                        override fun onSurfaceTextureSizeChanged(surfaceTexture: android.graphics.SurfaceTexture, width: Int, height: Int) {}
+                        override fun onSurfaceTextureDestroyed(surfaceTexture: android.graphics.SurfaceTexture): Boolean = true
+                        override fun onSurfaceTextureUpdated(surfaceTexture: android.graphics.SurfaceTexture) {}
                     }
                 }
+            },
+            modifier = Modifier.fillMaxSize()
         )
-
-        androidx.compose.runtime.LaunchedEffect(uiState.lensFacing) {
-            viewModel.bindCamera(lifecycleOwner, previewView)
-        }
 
         // 底部控制面板
         Column(
@@ -112,7 +103,7 @@ fun CameraScreen(
                 }
 
                 // 翻转前后摄像头
-                IconButton(onClick = { viewModel.toggleCameraFacing(lifecycleOwner, previewView) }) {
+                IconButton(onClick = { viewModel.toggleCameraFacing() }) {
                     Icon(
                         imageVector = Icons.Default.Cameraswitch,
                         contentDescription = "Switch Camera",

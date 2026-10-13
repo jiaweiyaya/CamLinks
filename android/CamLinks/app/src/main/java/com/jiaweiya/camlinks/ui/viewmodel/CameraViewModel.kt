@@ -38,14 +38,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private var currentLifecycleOwner: LifecycleOwner? = null
-    private var currentPreviewView: PreviewView? = null
+    private var currentSurfaceTexture: android.graphics.SurfaceTexture? = null
 
     private fun startTlsServer() {
         try {
             tlsServer = com.jiaweiya.camlinks.logic.network.TlsCamServer(
                 onClientConnected = {
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        cameraManager.requestKeyFrame()
                         syncDeviceState()
                     }
                 }
@@ -64,55 +64,35 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         syncDeviceState()
                     }
                     "switch_camera" -> {
-                        currentLifecycleOwner?.let { owner ->
-                            currentPreviewView?.let { view ->
-                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                                    toggleCameraFacing(owner, view)
-                                    syncDeviceState()
-                                }
-                            }
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            toggleCameraFacing()
+                            syncDeviceState()
                         }
                     }
-                    "capture_photo" -> {
-                        cameraManager.takePhoto()
-                    }
                     "set_resolution" -> {
-                        val w = json.optInt("width", 1920)
-                        val h = json.optInt("height", 1080)
+                        val w = json.optInt("width", 1280)
+                        val h = json.optInt("height", 720)
                         cameraManager.targetWidth = w
                         cameraManager.targetHeight = h
-                        currentLifecycleOwner?.let { owner ->
-                            currentPreviewView?.let { view ->
-                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                                    bindCamera(owner, view)
-                                    syncDeviceState()
-                                }
-                            }
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            restartCamera()
+                            syncDeviceState()
                         }
                     }
                     "set_fps" -> {
-                        val fps = json.optInt("fps", 30)
+                        val fps = json.optInt("fps", 60)
                         cameraManager.targetFps = fps
-                        currentLifecycleOwner?.let { owner ->
-                            currentPreviewView?.let { view ->
-                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                                    bindCamera(owner, view)
-                                    syncDeviceState()
-                                }
-                            }
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            restartCamera()
+                            syncDeviceState()
                         }
+                    }
+                    "request_key_frame" -> {
+                        cameraManager.requestKeyFrame()
                     }
                     "set_bitrate" -> {
                         val bitrate = json.optInt("int_value", 4000)
-                        // 20kbps~400000kbps (400Mbps) 动态映射压缩质量 (15~95)
-                        val quality = when {
-                            bitrate <= 100 -> 15
-                            bitrate <= 1000 -> 25 + (bitrate - 100) * 20 / 900
-                            bitrate <= 10000 -> 45 + (bitrate - 1000) * 35 / 9000
-                            else -> 80 + ((bitrate - 10000).coerceAtMost(390000) * 15 / 390000)
-                        }.coerceIn(15, 95)
-                        cameraManager.frameQuality = quality
-                        cameraManager.maxBitrateKbps = bitrate
+                        cameraManager.setBitrate(bitrate)
                     }
                 }
             }
@@ -133,7 +113,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             put("min_exposure", state.minExposureCompensation)
             put("max_exposure", state.maxExposureCompensation)
             put("zoom_ratio", state.zoomRatio.toDouble())
-            put("bitrate", 4000)
+            put("bitrate", cameraManager.maxBitrateKbps)
             put("current_resolution", "${cameraManager.targetWidth}x${cameraManager.targetHeight}")
             put("current_fps", cameraManager.targetFps)
             put("aperture", cameraManager.currentAperture)
@@ -155,14 +135,16 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiState = MutableStateFlow(CameraUiState())
     val uiState: StateFlow<CameraUiState> = _uiState.asStateFlow()
 
-    fun bindCamera(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
-        currentLifecycleOwner = lifecycleOwner
-        currentPreviewView = previewView
-        cameraManager.startCamera(
-            lifecycleOwner = lifecycleOwner,
-            previewView = previewView,
-            lensFacing = _uiState.value.lensFacing
-        ) { minZoom, maxZoom, minExp, maxExp ->
+    fun onPreviewSurfaceTextureReady(surfaceTexture: android.graphics.SurfaceTexture) {
+        currentSurfaceTexture = surfaceTexture
+        restartCamera()
+    }
+
+    private fun restartCamera() {
+        val surfaceTexture = currentSurfaceTexture ?: return
+        surfaceTexture.setDefaultBufferSize(cameraManager.targetWidth, cameraManager.targetHeight)
+        val surface = android.view.Surface(surfaceTexture)
+        cameraManager.startCamera(surface, _uiState.value.lensFacing) { minZoom, maxZoom, minExp, maxExp ->
             _uiState.update {
                 it.copy(
                     minZoomRatio = minZoom,
@@ -175,14 +157,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun toggleCameraFacing(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
-        val nextFacing = if (_uiState.value.lensFacing == CameraSelector.LENS_FACING_BACK) {
-            CameraSelector.LENS_FACING_FRONT
-        } else {
-            CameraSelector.LENS_FACING_BACK
-        }
+    fun toggleCameraFacing() {
+        val nextFacing = if (_uiState.value.lensFacing == 1) 0 else 1
         _uiState.update { it.copy(lensFacing = nextFacing, isTorchOn = false) }
-        bindCamera(lifecycleOwner, previewView)
+        restartCamera()
     }
 
     fun toggleTorch() {

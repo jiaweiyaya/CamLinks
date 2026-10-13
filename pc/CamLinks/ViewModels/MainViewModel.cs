@@ -49,6 +49,8 @@ namespace CamLinks.ViewModels
         private int _bitrate = 4000; // 单位 kbps
 
         private readonly VirtualCameraService _virtualCameraService = new();
+        private readonly H264Decoder _h264Decoder = new();
+        private WriteableBitmap? _writeableBitmap;
 
         [ObservableProperty]
         private bool _isVirtualCameraRunning = true;
@@ -177,12 +179,14 @@ namespace CamLinks.ViewModels
             var parts = value.Split('x');
             if (parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h))
             {
+                _h264Decoder.Reset();
                 _ = _networkService.SendCommandAsync(new CameraControlCommand
                 {
                     Action = "set_resolution",
                     Width = w,
                     Height = h
                 });
+                _ = _networkService.SendCommandAsync(new CameraControlCommand { Action = "request_key_frame" });
             }
         }
 
@@ -190,11 +194,13 @@ namespace CamLinks.ViewModels
         {
             if (!IsConnected || _isSyncingFromDevice || !value.HasValue) return;
 
+            _h264Decoder.Reset();
             _ = _networkService.SendCommandAsync(new CameraControlCommand
             {
                 Action = "set_fps",
                 Fps = value.Value
             });
+            _ = _networkService.SendCommandAsync(new CameraControlCommand { Action = "request_key_frame" });
         }
 
         public void ApplyBitrate()
@@ -289,28 +295,34 @@ namespace CamLinks.ViewModels
                 _frameTimestamps.Enqueue(_fpsStopwatch.Elapsed.TotalSeconds);
             }
 
-            _dispatcherQueue.TryEnqueue(async () =>
+            var bgraPixels = _h264Decoder.DecodePacket(frameBytes, out int width, out int height);
+            if (bgraPixels == null || width <= 0 || height <= 0) return;
+
+            if (IsVirtualCameraRunning)
+            {
+                _virtualCameraService.SendRawFrame(bgraPixels, width, height);
+            }
+
+            _dispatcherQueue.TryEnqueue(() =>
             {
                 try
                 {
-                    using var stream = new InMemoryRandomAccessStream();
-                    using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
+                    if (_writeableBitmap == null || _writeableBitmap.PixelWidth != width || _writeableBitmap.PixelHeight != height)
                     {
-                        writer.WriteBytes(frameBytes);
-                        await writer.StoreAsync().AsTask();
+                        _writeableBitmap = new WriteableBitmap(width, height);
+                        PreviewSource = _writeableBitmap;
+                        LiveResolution = $"{width}x{height}";
                     }
-                    var bitmap = new BitmapImage();
-                    await bitmap.SetSourceAsync(stream).AsTask();
-                    PreviewSource = bitmap;
-                    LiveResolution = $"{bitmap.PixelWidth}x{bitmap.PixelHeight}";
+
+                    using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_writeableBitmap.PixelBuffer))
+                    {
+                        stream.Write(bgraPixels, 0, bgraPixels.Length);
+                    }
+                    _writeableBitmap.Invalidate();
+
                     if (!HasVideoFrame)
                     {
                         HasVideoFrame = true;
-                    }
-
-                    if (IsVirtualCameraRunning)
-                    {
-                        _ = _virtualCameraService.SendFrameAsync(frameBytes);
                     }
                 }
                 catch { }
@@ -368,7 +380,9 @@ namespace CamLinks.ViewModels
         [RelayCommand]
         public async Task SwitchCameraAsync()
         {
+            _h264Decoder.Reset();
             await _networkService.SendCommandAsync(new CameraControlCommand { Action = "switch_camera" });
+            await _networkService.SendCommandAsync(new CameraControlCommand { Action = "request_key_frame" });
         }
 
         [RelayCommand]
@@ -412,6 +426,7 @@ namespace CamLinks.ViewModels
 
         private void OnConnectionStateChanged(bool connected)
         {
+            _h264Decoder.Reset();
             _dispatcherQueue.TryEnqueue(() =>
             {
                 IsConnected = connected;
@@ -420,6 +435,7 @@ namespace CamLinks.ViewModels
                 {
                     HasVideoFrame = false;
                     PreviewSource = null;
+                    _writeableBitmap = null;
                 }
             });
         }

@@ -76,32 +76,12 @@ namespace CamLinks.Services
             }
         }
 
-        public async Task SendFrameAsync(byte[] jpegBytes)
+        public void SendRawFrame(byte[] bgraPixels, int width, int height)
         {
             if (!IsRunning || _accessor == null) return;
 
             try
             {
-                using var stream = new InMemoryRandomAccessStream();
-                using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
-                {
-                    writer.WriteBytes(jpegBytes);
-                    await writer.StoreAsync().AsTask();
-                }
-
-                var decoder = await BitmapDecoder.CreateAsync(stream);
-                var pixelData = await decoder.GetPixelDataAsync(
-                    BitmapPixelFormat.Bgra8,
-                    BitmapAlphaMode.Premultiplied,
-                    new BitmapTransform(),
-                    ExifOrientationMode.RespectExifOrientation,
-                    ColorManagementMode.DoNotColorManage
-                );
-
-                byte[] pixels = pixelData.DetachPixelData();
-                int width = (int)decoder.PixelWidth;
-                int height = (int)decoder.PixelHeight;
-
                 var header = new SharedImageMemoryHeader
                 {
                     Width = width,
@@ -114,7 +94,7 @@ namespace CamLinks.Services
 
                 int headerSize = Marshal.SizeOf<SharedImageMemoryHeader>();
                 _accessor.Write(0, ref header);
-                _accessor.WriteArray(headerSize, pixels, 0, Math.Min(pixels.Length, MaxBufferSize - headerSize));
+                _accessor.WriteArray(headerSize, bgraPixels, 0, Math.Min(bgraPixels.Length, MaxBufferSize - headerSize));
             }
             catch
             {
